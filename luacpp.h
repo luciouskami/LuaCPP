@@ -1,5 +1,5 @@
 /*
-*	Lua 5.2.2 C++
+*	LuaJIT 2.0.2 C++
 *	Author: Nestharus
 *
 *	Class wrapper for Lua C API, Debug Library, and Auxiliary Library
