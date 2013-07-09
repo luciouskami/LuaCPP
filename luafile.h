@@ -23,30 +23,41 @@ class LuaFile {
 				}
 
 				~DynamicArray() {
-					delete[] arr;
+					if (arr != nullptr) {
+						delete[] arr;
+					}
 				}
 
 				void resize(size_t newSize) {
 					Data* n_arr = new Data[newSize];
-					memcpy(n_arr, arr, size * sizeof(Data));
-					delete[] arr;
-					n_arr = arr;
+
+					if (arr != nullptr) {
+						std::copy(arr, arr + size, n_arr);
+						delete[] arr;
+					}
+					
+					arr = n_arr;
 					size = newSize;
 				}
 
 				Data& operator [](uint32_t index) {
 					if (index >= size) {
-						resize(static_cast<size_t>(index < (index << 1)? (index << 1) : std::numeric_limits<uint32_t>::max()));
+						if (index < (index << 1)) {
+							resize(static_cast<size_t>(index << 1));
+						} else {
+							resize(static_cast<size_t>(std::numeric_limits<uint32_t>::max()));
+						}
 					}
+
 					return arr[index];
 				}
 
-				void push_back(Data v) {
+				void push_back(Data&& v) {
 					(*this)[pos++] = v;
 				}
 
-				void set_pos(size_t pos) {
-					this->pos = pos;
+				void set_pos(size_t p_pos) {
+					pos = p_pos;
 				}
 		};
 
@@ -116,10 +127,7 @@ class LuaFile {
 				}
 
 			public:
-				iterator(Queue* ptr) {
-					this->ptr = ptr;
-					region = ptr->first;
-					word = 0;
+				iterator(Queue* p_ptr) : ptr(p_ptr), region(p_ptr->first), word(0) {
 				}
 
 				iterator& operator++() {
@@ -157,7 +165,7 @@ class LuaFile {
 				}
 				
 				void data(char* buffer) {
-					memcpy(buffer, region->data[word].start, size());
+					std::copy(region->data[word].start, region->data[word].start + size(), buffer);
 					buffer[size()] = '\0';
 				}
 				
@@ -203,8 +211,9 @@ class LuaFile {
 		void dump(char* buffer) const {
 			for (auto node = file.first; node != 0; node = node->next) {
 				for (uint32_t i = 0; i < node->data.pos; ++i) {
-					memcpy(buffer, node->data[i].start, static_cast<size_t>(node->data[i].end - node->data[i].start + 1));
-					buffer += static_cast<size_t>(node->data[i].end - node->data[i].start + 1);
+					size_t data_size = static_cast<size_t>(node->data[i].end - node->data[i].start + 1);
+					std::copy(node->data[i].start, node->data[i].start + data_size, buffer);
+					buffer += data_size;
 				}
 			}
 		}
