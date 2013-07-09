@@ -161,15 +161,12 @@ class LuaFile {
 					buffer[size()] = '\0';
 				}
 				
-				bool operator==(const iterator& rhs) { return ptr == rhs.ptr; }
-				bool operator!=(const iterator& rhs) { return ptr != rhs.ptr; }
+				bool operator==(const iterator& rhs) const { return ptr == rhs.ptr; }
+				bool operator!=(const iterator& rhs) const { return ptr != rhs.ptr; }
 				
 				void write(char* start, char* end) {
 					if (region != nullptr) { 
-						Data data;
-						data.start = start;
-						data.end = end;
-						region->data.push_back(data);
+						region->data.push_back(Data{start, end});
 					}
 				}
 				
