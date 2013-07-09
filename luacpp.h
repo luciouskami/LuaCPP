@@ -17,34 +17,36 @@
 
 #include "lua.hpp"
 
-using namespace std;
-
 class Lua {
 	private:
-		lua_State* L;
+		State* L;
 		bool dependent;
 
 		static class Compiler {
 			private:
-				static fstream file;
+				static std::fstream file;
 
 				//writer for compiler
-				static int writer(lua_State* L, const void* p, size_t size, void* u) {
+				static int writer(State* L, const void* p, size_t size, void* u) {
 					file.write((const char*)p, size);
 					return 0;
 				} //writer
 
 			public:
 				//execute compiler
-				static bool execute(lua_State* L, char* input, const char* output) {
-					file.open(input, ios::in | ios::binary);
-					if (!file.is_open()) return false;
-						luaL_loadfile(L, input);
+				static bool execute(State* L, char* input, const char* output) {
+					file.open(input, std::ios::in | std::ios::binary);
+					if (!file.is_open()) {
+						return false;
+					}
+					luaL_loadfile(L, input);
 					file.close();
 
-					file.open(output, ios::out | ios::binary);
-					if (!file.is_open()) false;
-						lua_dump(L, writer, NULL);
+					file.open(output, std::ios::out | std::ios::binary);
+					if (!file.is_open()) {
+						return false;
+					}
+					lua_dump(L, writer, NULL);
 					file.close();
 
 					return true;
@@ -52,9 +54,9 @@ class Lua {
 		}; //Compiler
 
 		//hide = operator
-		Lua* operator=(Lua& rhs) { return 0; }
+		Lua* operator=(Lua& rhs) { return nullptr; }
 
-		Lua(lua_State* L) { this->L = L; dependent = true; }
+		Lua(State* L) { this->L = L; dependent = true; }
 	public:
 
 		/*
@@ -66,7 +68,7 @@ class Lua {
 		//Returns the new state, or NULL if there is a memory allocation error.
 		Lua() { L = luaL_newstate(); dependent = false;}
 		//Creates a new thread running in a new, independent state. Returns NULL if cannot create the thread or the state (due to lack of memory). The argument f is the allocator function; Lua does all memory allocation for this state through this function. The second argument, ud, is an opaque pointer that Lua passes to the allocator in every call.
-		Lua(lua_Alloc f, void* ud) { L = lua_newstate(f, ud); dependent = false;}
+		Lua(Alloc f, void* ud) { L = lua_newstate(f, ud); dependent = false;}
 		//Creates a new thread, pushes it on the stack, and returns a pointer to a lua_State that represents this new thread. The new thread returned by this function shares with the original thread its global environment, but has an independent execution stack.
 		//
 		//There is no explicit function to close or to destroy a thread. Threads are subject to garbage collection, like any Lua object.
@@ -89,7 +91,7 @@ class Lua {
 		*/
 
 		//Sets a new panic function and returns the old one.
-		inline lua_CFunction atpanic(lua_CFunction panicf) { return lua_atpanic(L, panicf); }
+		inline CFunction atpanic(CFunction panicf) { return lua_atpanic(L, panicf); }
 		//Calls a function.
 		//
 		//To call a function you must use the following protocol: first, the function to be called is pushed onto the stack; then, the arguments to the function are pushed in direct order; that is, the first argument is pushed first. Finally you call lua_call; nargs is the number of arguments that you pushed onto the stack. All arguments and the function value are popped from the stack when the function is called. The function results are pushed onto the stack when the function returns. The number of results is adjusted to nresults, unless nresults is LUA_MULTRET. In this case, all results from the function are pushed. Lua takes care that the returned values fit into the stack space. The function results are pushed onto the stack in direct order (the first result is pushed first), so that after the call the last result is on the top of the stack.
@@ -118,7 +120,7 @@ class Lua {
 		//Concatenates the n values at the top of the stack, pops them, and leaves the result at the top. If n is 1, the result is the single value on the stack (that is, the function does nothing); if n is 0, the result is the empty string. Concatenation is performed following the usual semantics of Lua.
 		inline void concat(int n) { lua_concat(L, n); }
 		//Calls the C function func in protected mode. func starts with only one element in its stack, a light userdata containing ud. In case of errors, lua_cpcall returns the same error codes as lua_pcall, plus the error object on the top of the stack; otherwise, it returns zero, and does not change the stack. All values returned by func are discarded.
-		inline int cpcall(lua_CFunction func, void* ud) { return lua_cpcall(L, func, ud); }
+		inline int cpcall(CFunction func, void* ud) { return lua_cpcall(L, func, ud); }
 		//Creates a new empty table and pushes it onto the stack. Parameter narr is a hint for how many elements the table will have as a sequence; parameter nrec is a hint for how many other elements the table will have. Lua may use these hints to preallocate memory for the new table. This pre-allocation is useful for performance when you know in advance how many elements the table will have. Otherwise you can use the function lua_newtable.
 		inline void createtable(int narr, int nrec) { lua_createtable(L, narr, nrec); }
 		//Dumps a function as a binary chunk. Receives a Lua function on the top of the stack and produces a binary chunk that, if loaded again, results in a function equivalent to the one dumped. As it produces parts of the chunk, lua_dump calls function writer (see lua_Writer) with the given data to write them.
@@ -126,7 +128,7 @@ class Lua {
 		//The value returned is the error code returned by the last call to the writer; 0 means no errors.
 		//
 		//This function does not pop the Lua function from the stack.
-		inline int dump(lua_Writer writer, void *data) { return lua_dump(L, writer, data); }
+		inline int dump(Writer writer, void *data) { return lua_dump(L, writer, data); }
 		//Returns 1 if the two values in acceptable indices index1 and index2 are equal, following the semantics of the Lua == operator (that is, may call metamethods). Otherwise returns 0. Also returns 0 if any of the indices is non valid.
 		inline int equal(int index1, int index2) { return lua_equal(L, index1, index2); }
 		//Generates a Lua error. The error message (which can actually be a Lua value of any type) must be on the stack top. This function does a long jump, and therefore never returns (see luaL_error).
@@ -150,7 +152,7 @@ class Lua {
 		//For more details about these options, see collectgarbage.
 		inline int gc(int what, int data) { return lua_gc(L, what, data); }
 		//Returns the memory-allocation function of a given state. If ud is not NULL, Lua stores in *ud the opaque pointer passed to lua_newstate.
-		inline lua_Alloc getallocf(void** ud) { return lua_getallocf(L, ud); }
+		inline Alloc getallocf(void** ud) { return lua_getallocf(L, ud); }
 		//Pushes onto the stack the environment table of the value at the given index.
 		inline void getfenv(int index) { lua_getfenv(L, index); }
 		//Pushes onto the stack the value t[k], where t is the value at the given index. As in Lua, this function may trigger a metamethod for the "index" event.
@@ -211,7 +213,7 @@ class Lua {
 		//lua_load uses the stack internally, so the reader function should always leave the stack unmodified when returning.
 		//
 		//If the resulting function has one upvalue, this upvalue is set to the value of the global environment stored at index LUA_RIDX_GLOBALS in the registry (see §4.5). When loading main chunks, this upvalue will be the _ENV variable.
-		inline int load(lua_Reader reader, void* data, const char* source) { return lua_load(L, reader, data, source); }
+		inline int load(Reader reader, void* data, const char* source) { return lua_load(L, reader, data, source); }
 		//Creates a new empty table and pushes it onto the stack. It is equivalent to lua_createtable(L, 0, 0).
 		inline void newtable() { lua_newtable(L); }
 		//This function allocates a new block of memory with the given size, pushes onto the stack a new full userdata with the block address, and returns this address. The host program can freely use this memory.
@@ -264,7 +266,7 @@ class Lua {
 		//The maximum value for n is 255.
 		//
 		//When n is zero, this function creates a light C function, which is just a pointer to the C function. In that case, it never throws a memory error.
-		inline void	pushccloser(lua_CFunction fn, int n) { lua_pushcclosure(L, fn, n); }
+		inline void	pushccloser(CFunction fn, int n) { lua_pushcclosure(L, fn, n); }
 		//Pushes a C function onto the stack. This function receives a pointer to a C function and pushes onto the stack a Lua value of type function that, when called, invokes the corresponding C function.
 		//
 		//Any function to be registered in Lua must follow the correct protocol to receive its parameters and return its results (see lua_CFunction).
@@ -274,14 +276,14 @@ class Lua {
 		//		#define lua_pushcfunction(L,f)  lua_pushcclosure(L,f,0)
 		//
 		//Note that f is used twice.
-		inline void	pushcfunction(lua_CFunction f) { lua_pushcfunction(L, f); }
+		inline void	pushcfunction(CFunction f) { lua_pushcfunction(L, f); }
 		//Pushes onto the stack a formatted string and returns a pointer to this string. It is similar to the ANSI C function sprintf, but has some important differences:
 		//
 		//	You do not have to allocate space for the result: the result is a Lua string and Lua takes care of memory allocation (and deallocation, through garbage collection).
 		//	The conversion specifiers are quite restricted. There are no flags, widths, or precisions. The conversion specifiers can only be '%%' (inserts a '%' in the string), '%s' (inserts a zero-terminated string, with no size restrictions), '%f' (inserts a lua_Number), '%p' (inserts a pointer as a hexadecimal numeral), '%d' (inserts an int), and '%c' (inserts an int as a byte).
 		inline const char* pushfstring(const char* fmt, ...) { va_list argptr; va_start(argptr,fmt); return lua_pushfstring(L, fmt, argptr); }
 		//Pushes a number with value n onto the stack.
-		inline void pushinteger(lua_Integer n) { lua_pushinteger(L, n); }
+		inline void pushinteger(Integer n) { lua_pushinteger(L, n); }
 		//Pushes a light userdata onto the stack.
 		//
 		//Userdata represent C values in Lua. A light userdata represents a pointer, a void*. It is a value (like a number): you do not create it, it has no individual metatable, and it is not collected (as it was never created). A light userdata is equal to "any" light userdata with the same C address.
@@ -295,7 +297,7 @@ class Lua {
 		//Pushes a nil value onto the stack.
 		inline void pushnil() { lua_pushnil(L); }
 		//Pushes a number with value n onto the stack.
-		inline void pushnumber(lua_Number n) { lua_pushnumber(L, n); }
+		inline void pushnumber(Number n) { lua_pushnumber(L, n); }
 		//Pushes the zero-terminated string pointed to by s onto the stack. Lua makes (or reuses) an internal copy of the given string, so the memory at s can be freed or reused immediately after the function returns.
 		//
 		//Returns a pointer to the internal copy of the string.
@@ -321,7 +323,7 @@ class Lua {
 		//This function pops the value from the stack. The assignment is raw; that is, it does not invoke metamethods.
 		inline void rawseti(int index, int n) { lua_rawseti(L, index, n); }
 		//Sets the C function f as the new value of global name. It is defined as a macro:
-		inline void registerfunc(const char* name, lua_CFunction f) { lua_register(L, name, f); }
+		inline void registerfunc(const char* name, CFunction f) { lua_register(L, name, f); }
 		//Removes the element at the given valid index, shifting down the elements above this index to fill the gap. This function cannot be called with a pseudo-index, because a pseudo-index is not an actual stack position.
 		inline void remove(int index) { lua_remove(L, index); }
 		//Moves the top element into the given valid index without shifting any element (therefore replacing the value at the given index), and then pops the top element.
@@ -337,7 +339,7 @@ class Lua {
 		//The parameter from represents the coroutine that is resuming L. If there is no such coroutine, this parameter can be NULL.
 		inline int resume(int nargs) { return lua_resume(L, nargs); }
 		//Changes the allocator function of a given state to f with user data ud.
-		inline void setallocf(lua_Alloc f, void* ud) { lua_setallocf(L, f, ud); }
+		inline void setallocf(Alloc f, void* ud) { lua_setallocf(L, f, ud); }
 		//Pops a table from the stack and sets it as the new environment for the value at the given index. If the value at the given index is neither a function nor a thread nor a userdata, lua_setfenv returns 0. Otherwise it returns 1.
 		inline int setfenv(int index) { return lua_setfenv(L, index); }
 		//Does the equivalent to t[k] = v, where t is the value at the given index and v is the value at the top of the stack.
@@ -363,15 +365,15 @@ class Lua {
 		//Converts the Lua value at the given index to a C boolean value (0 or 1). Like all tests in Lua, lua_toboolean returns true for any Lua value different from false and nil; otherwise it returns false. (If you want to accept only actual boolean values, use lua_isboolean to test the value's type.)
 		inline int toboolean(int index) { return lua_toboolean(L, index); }
 		//Converts a value at the given index to a C function. That value must be a C function; otherwise, returns NULL.
-		inline lua_CFunction tocfunction(int index) { return lua_tocfunction(L, index); }
+		inline CFunction tocfunction(int index) { return lua_tocfunction(L, index); }
 		//Equivalent to lua_tointegerx with isnum equal to NULL.
-		inline lua_Integer tointeger(int index) { return lua_tointeger(L, index); }
+		inline Integer tointeger(int index) { return lua_tointeger(L, index); }
 		//Converts the Lua value at the given index to a C string. If len is not NULL, it also sets *len with the string length. The Lua value must be a string or a number; otherwise, the function returns NULL. If the value is a number, then lua_tolstring also changes the actual value in the stack to a string. (This change confuses lua_next when lua_tolstring is applied to keys during a table traversal.)
 		//
 		//lua_tolstring returns a fully aligned pointer to a string inside the Lua state. This string always has a zero ('\0') after its last character (as in C), but can contain other zeros in its body. Because Lua has garbage collection, there is no guarantee that the pointer returned by lua_tolstring will be valid after the corresponding value is removed from the stack.
 		inline const char* tolstring(int index, size_t* len) { return lua_tolstring(L, index, len); }
 		//Equivalent to lua_tonumberx with isnum equal to NULL.
-		inline lua_Number tonumber(int index) { return lua_tonumber(L, index); }
+		inline Number tonumber(int index) { return lua_tonumber(L, index); }
 		//Converts the value at the given index to a generic C pointer (void*). The value can be a userdata, a table, a thread, or a function; otherwise, lua_topointer returns NULL. Different objects will give different pointers. There is no way to convert the pointer back to its original value.
 		//
 		//Typically this function is used only for debug information.
@@ -381,7 +383,7 @@ class Lua {
 		//Converts the value at the given index to a Lua thread (represented as lua_State*). This value must be a thread; otherwise, the function returns NULL.
 		//
 		//Instantiates a new class, be sure to destroy
-		inline Lua* tothread(int index) { lua_State* l = lua_tothread(L, index); if (l == 0) return 0; return new Lua(l); }
+		inline Lua* tothread(int index) { State* l = lua_tothread(L, index); if (l == 0) return 0; return new Lua(l); }
 		//If the value at the given index is a full userdata, returns its block address. If the value is a light userdata, returns its pointer. Otherwise, returns NULL.
 		inline void* touserdata(int index) { return lua_touserdata(L, index); }
 		//Returns the type of the value in the given valid index, or LUA_TNONE for a non-valid (but acceptable) index. The types returned by lua_type are coded by the following constants defined in lua.h: LUA_TNIL, LUA_TNUMBER, LUA_TBOOLEAN, LUA_TSTRING, LUA_TTABLE, LUA_TFUNCTION, LUA_TUSERDATA, LUA_TTHREAD, and LUA_TLIGHTUSERDATA.
@@ -400,7 +402,7 @@ class Lua {
 		*	Debug Interface
 		*/
 		//Returns the current hook function.
-		inline lua_Hook gethook() { return lua_gethook(L); }
+		inline Hook gethook() { return lua_gethook(L); }
 		//Returns the current hook count.
 		inline int gethookcount() { return lua_gethookcount(L); }
 		//Returns the current hook mask.
@@ -427,7 +429,7 @@ class Lua {
 		//	'L': pushes onto the stack a table whose indices are the numbers of the lines that are valid on the function. (A valid line is a line with some associated code, that is, a line where you can put a break point. Non-valid lines include empty lines and comments.)
 		//
 		//This function returns 0 on error (for instance, an invalid option in what).
-		inline int getinfo(const char* what, lua_Debug* ar) { return lua_getinfo(L, what, ar); }
+		inline int getinfo(const char* what, Debug* ar) { return lua_getinfo(L, what, ar); }
 		//Gets information about a local variable of a given activation record or a given function.
 		//
 		//In the first case, the parameter ar must be a valid activation record that was filled by a previous call to lua_getstack or given as argument to a hook (see lua_Hook). The index n selects which local variable to inspect; see debug.getlocal for details about variable indices and names.
@@ -437,11 +439,11 @@ class Lua {
 		//In the second case, ar should be NULL and the function to be inspected must be at the top of the stack. In this case, only parameters of Lua functions are visible (as there is no information about what variables are active) and no values are pushed onto the stack.
 		//
 		//Returns NULL (and pushes nothing) when the index is greater than the number of active local variables.
-		inline const char* getlocal(lua_Debug* ar, int n) { return lua_getlocal(L, ar, n); }
+		inline const char* getlocal(Debug* ar, int n) { return lua_getlocal(L, ar, n); }
 		//Gets information about the interpreter runtime stack.
 		//
 		//This function fills parts of a lua_Debug structure with an identification of the activation record of the function executing at a given level. Level 0 is the current running function, whereas level n+1 is the function that has called level n (except for tail calls, which do not count on the stack). When there are no errors, lua_getstack returns 1; when called with a level greater than the stack depth, it returns 0.
-		inline int getstack(int level, lua_Debug* ar) { return lua_getstack(L, level, ar); }
+		inline int getstack(int level, Debug* ar) { return lua_getstack(L, level, ar); }
 		//Gets information about a closure's upvalue. (For Lua functions, upvalues are the external local variables that the function uses, and that are consequently included in its closure.) lua_getupvalue gets the index n of an upvalue, pushes the upvalue's value onto the stack, and returns its name. funcindex points to the closure in the stack. (Upvalues have no particular order, as they are active through the whole function. So, they are numbered in an arbitrary order.)
 		//
 		//Returns NULL (and pushes nothing) when the index is greater than the number of upvalues. For C functions, this function uses the empty string "" as a name for all upvalues.
@@ -456,11 +458,11 @@ class Lua {
 		//	The count hook: is called after the interpreter executes every count instructions. (This event only happens while Lua is executing a Lua function.)
 		
 		//A hook is disabled by setting mask to zero.
-		inline int sethook(lua_Hook f, int mask, int count) { return lua_sethook(L, f, mask, count); }
+		inline int sethook(Hook f, int mask, int count) { return lua_sethook(L, f, mask, count); }
 		//Sets the value of a local variable of a given activation record. Parameters ar and n are as in lua_getlocal (see lua_getlocal). lua_setlocal assigns the value at the top of the stack to the variable and returns its name. It also pops the value from the stack.
 		//
 		//Returns NULL (and pops nothing) when the index is greater than the number of active local variables.
-		inline const char* setlocal(lua_Debug* ar, int n) { return lua_setlocal(L, ar, n); }
+		inline const char* setlocal(Debug* ar, int n) { return lua_setlocal(L, ar, n); }
 		//Sets the value of a closure's upvalue. It assigns the value at the top of the stack to the upvalue and returns its name. It also pops the value from the stack. Parameters funcindex and n are as in the lua_getupvalue (see lua_getupvalue).
 		//
 		//Returns NULL (and pops nothing) when the index is greater than the number of upvalues.
@@ -477,17 +479,17 @@ class Lua {
 		*/
 		
 		//Adds the byte c to the buffer B (see luaL_Buffer).
-		static inline void l_addchar(luaL_Buffer* B, char c) { luaL_addchar(B, c); }
+		static inline void l_addchar(l_Buffer* B, char c) { luaL_addchar(B, c); }
 		//Adds the string pointed to by s with length l to the buffer B (see luaL_Buffer). The string can contain embedded zeros.
-		static inline void l_addlstring(luaL_Buffer* B, const char* s, size_t l) { luaL_addlstring(B, s, l); }
+		static inline void l_addlstring(l_Buffer* B, const char* s, size_t l) { luaL_addlstring(B, s, l); }
 		//Adds to the buffer B (see luaL_Buffer) a string of length n previously copied to the buffer area (see luaL_prepbuffer).
-		static inline void l_addsize(luaL_Buffer* B, size_t n) { luaL_addsize(B, n); }
+		static inline void l_addsize(l_Buffer* B, size_t n) { luaL_addsize(B, n); }
 		//Adds the zero-terminated string pointed to by s to the buffer B (see luaL_Buffer). The string cannot contain embedded zeros.
-		static inline void l_addstring(luaL_Buffer* B, const char* s) { luaL_addstring(B, s); }
+		static inline void l_addstring(l_Buffer* B, const char* s) { luaL_addstring(B, s); }
 		//Adds the value at the top of the stack to the buffer B (see luaL_Buffer). Pops the value.
 		//
 		//This is the only function on string buffers that can (and must) be called with an extra element on the stack, which is the value to be added to the buffer.
-		static inline void l_addvalue(luaL_Buffer* B) { luaL_addvalue(B); }
+		static inline void l_addvalue(l_Buffer* B) { luaL_addvalue(B); }
 		//Checks whether cond is true. If not, raises an error with a standard message.
 		inline void l_argcheck(int cond, int arg, const char* extramsg) { luaL_argcheck(L, cond, arg, extramsg); }
 		//Raises an error with a standard message that includes extramsg as a comment.
@@ -495,7 +497,7 @@ class Lua {
 		//This function never returns, but it is an idiom to use it in C functions as return luaL_argerror(args).
 		inline int l_argerror(int arg, const char* extramsg) { return luaL_argerror(L, arg, extramsg); }
 		//Initializes a buffer B. This function does not allocate any space; the buffer must be declared as a variable (see luaL_Buffer).
-		inline void l_buffinit(luaL_Buffer* B) { luaL_buffinit(L, B); }
+		inline void l_buffinit(l_Buffer* B) { luaL_buffinit(L, B); }
 		//Calls a metamethod.
 		//
 		//If the object at index obj has a metatable and this metatable has a field e, this function calls this field passing the object as its only argument. In this case this function returns true and pushes onto the stack the value returned by the call. If there is no metatable or no metamethod, this function returns false (without pushing any value on the stack).
@@ -505,7 +507,7 @@ class Lua {
 		//Checks whether the function argument arg is a number and returns this number cast to an int.
 		inline int l_checkint(int arg) { return luaL_checkint(L, arg); }
 		//Checks whether the function argument arg is a number and returns this number cast to a lua_Integer.
-		inline lua_Integer l_checkinteger(int arg) { return luaL_checkinteger(L, arg); }
+		inline Integer l_checkinteger(int arg) { return luaL_checkinteger(L, arg); }
 		//Checks whether the function argument arg is a number and returns this number cast to a long.
 		inline long l_checklong(int arg) { return luaL_checklong(L, arg); }
 		//Checks whether the function argument arg is a string and returns this string; if l is not NULL fills *l with the string's length.
@@ -513,7 +515,7 @@ class Lua {
 		//This function uses lua_tolstring to get its result, so all conversions and caveats of that function apply here.
 		inline const char* l_checklstring(int arg, size_t* l) { return luaL_checklstring(L, arg, l); }
 		//Checks whether the function argument arg is a number and returns this number.
-		inline lua_Number l_checknumber(int arg) { return luaL_checknumber(L, arg); }
+		inline Number l_checknumber(int arg) { return luaL_checknumber(L, arg); }
 		//Checks whether the function argument arg is a string and searches for this string in the array lst (which must be NULL-terminated). Returns the index in the array where the string was found. Raises an error if the argument is not a string or if the string cannot be found.
 		//
 		//If def is not NULL, the function uses def as a default value when there is no argument arg or when this argument is nil.
@@ -587,7 +589,7 @@ class Lua {
 		//If the function argument arg is a number, returns this number cast to an int. If this argument is absent or is nil, returns d. Otherwise, raises an error.
 		inline int l_optint(int arg, int d) { return luaL_optint(L, arg, d); }
 		//If the function argument arg is a number, returns this number cast to a lua_Integer. If this argument is absent or is nil, returns d. Otherwise, raises an error.
-		inline lua_Integer l_optinteger(int arg, lua_Integer d) { return luaL_optinteger(L, arg, d); }
+		inline Integer l_optinteger(int arg, Integer d) { return luaL_optinteger(L, arg, d); }
 		//If the function argument arg is a number, returns this number cast to a long. If this argument is absent or is nil, returns d. Otherwise, raises an error.
 		inline long l_optlong(int arg, long d) { return luaL_optlong(L, arg, d); }
 		//If the function argument arg is a string, returns this string. If this argument is absent or is nil, returns d. Otherwise, raises an error.
@@ -595,13 +597,13 @@ class Lua {
 		//If l is not NULL, fills the position *l with the result's length.
 		inline const char* l_optlstring(int arg, const char* d, size_t* l) { return luaL_optlstring(L, arg, d, l); }
 		//If the function argument arg is a number, returns this number. If this argument is absent or is nil, returns d. Otherwise, raises an error.
-		inline lua_Number l_optnumber(int arg, lua_Number d) { return luaL_optnumber(L, arg, d); }
+		inline Number l_optnumber(int arg, Number d) { return luaL_optnumber(L, arg, d); }
 		//If the function argument arg is a string, returns this string. If this argument is absent or is nil, returns d. Otherwise, raises an error.
 		inline const char* l_optstring(int arg, const char* d) { return luaL_optstring(L, arg, d); }
 		//Equivalent to luaL_prepbuffsize with the predefined size LUAL_BUFFERSIZE.
-		static inline char* l_prepbuffer(luaL_Buffer* B) { return luaL_prepbuffer(B); }
+		static inline char* l_prepbuffer(l_Buffer* B) { return luaL_prepbuffer(B); }
 		//Finishes the use of buffer B leaving the final string on the top of the stack.
-		static inline void l_pushresult(luaL_Buffer* B) { luaL_pushresult(B); }
+		static inline void l_pushresult(l_Buffer* B) { luaL_pushresult(B); }
 		//Creates and returns a reference, in the table at index t, for the object at the top of the stack (and pops the object).
 		//
 		//A reference is a unique integer key. As long as you do not manually add integer keys into table t, luaL_ref ensures the uniqueness of the key it returns. You can retrieve an object referred by reference r by calling lua_rawgeti(L, t, r). Function luaL_unref frees a reference and its associated object.
@@ -615,7 +617,7 @@ class Lua {
 		//When called with a non - null libname, luaL_register creates a new table t, sets it as the value of the global variable libname, sets it as the value of package.loaded[libname], and registers on it all functions in the list l.If there is a table in package.loaded[libname] or in variable libname, reuses this table instead of creating a new one.
 		//
 		//In any case the function leaves the table on the top of the stack.
-		inline void l_register(const char* libname, const luaL_Reg* l) { luaL_register(L, libname, l); }
+		inline void l_register(const char* libname, const l_Reg* l) { luaL_register(L, libname, l); }
 		//Creates and pushes a traceback of the stack L1. If msg is not NULL it is appended at the beginning of the traceback. The level parameter tells at which level to start the traceback.
 		inline void l_traceback (Lua& l2, const char *msg, int level) { luaL_traceback(L, l2.L, msg, level); }
 		//Returns the name of the type of the value at the given index.
@@ -653,7 +655,7 @@ class Lua {
 		//	LUAJIT_MODE_OFF
 		//	LUAJIT_MODE_ON
 		//	LUAJIT_MODE_FLUSH
-		int setmode(int idx, int mode) { return luaJIT_setmode(L, idx, mode); }
+		int setmode(int index, int mode) { return luaJIT_setmode(L, index, mode); }
 
 		/*
 		*	typedefs
