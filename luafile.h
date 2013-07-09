@@ -207,18 +207,8 @@ class LuaFile {
 
 			return fsize;
 		}
-		
-		void dump(char* buffer) const {
-			for (auto node = file.first; node != 0; node = node->next) {
-				for (uint32_t i = 0; i < node->data.pos; ++i) {
-					size_t data_size = static_cast<size_t>(node->data[i].end - node->data[i].start + 1);
-					std::copy(node->data[i].start, node->data[i].start + data_size, buffer);
-					buffer += data_size;
-				}
-			}
-		}
 
-		void dump(std::ofstream& fname) const {
+		void dump(std::ostream& fname) const {
 			for (auto node = file.first; node != 0; node = node->next) {
 				for (uint32_t i = 0; i < node->data.pos; ++i) {
 					fname.write(node->data[i].start, static_cast<std::streamsize>(node->data[i].end - node->data[i].start + 1));
