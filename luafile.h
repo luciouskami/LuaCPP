@@ -3,12 +3,14 @@
 #include <stdint.h>
 #include <cstring>
 #include <fstream>
-
-using namespace std;
+#include <limits>
 
 class LuaFile {
 	private:
-		union Data { char* start; char* end; };
+		struct Data {
+			char* start;
+			char* end;
+		};
 
 		class DynamicArray {
 			public:
@@ -16,29 +18,36 @@ class LuaFile {
 				uint32_t pos;
 				Data* arr;
 
-				DynamicArray() {
-					size = 4;
-					pos = 0;
-
+				DynamicArray() : size(4), pos(0) {
 					arr = new Data[size];
 				}
-				~DynamicArray() { delete[] arr; }
+
+				~DynamicArray() {
+					delete[] arr;
+				}
 
 				void resize(size_t newSize) {
 					Data* n_arr = new Data[newSize];
-					memcpy(n_arr, arr, size*sizeof(Data));
+					memcpy(n_arr, arr, size * sizeof(Data));
 					delete[] arr;
 					n_arr = arr;
 					size = newSize;
 				}
 
-				Data& operator [](uint32_t idx) {
-					if (idx >= size) resize((size_t)(idx < (idx << 1)? (idx << 1) : UINT32_MAX));
-					return arr[idx];
+				Data& operator [](uint32_t index) {
+					if (index >= size) {
+						resize(static_cast<size_t>(index < (index << 1)? (index << 1) : std::numeric_limits<uint32_t>::max()));
+					}
+					return arr[index];
 				}
 
-				void push_back(Data v) { (*this)[pos++] = v; }
-				void set_pos(size_t pos) { this->pos = pos; }
+				void push_back(Data v) {
+					(*this)[pos++] = v;
+				}
+
+				void set_pos(size_t pos) {
+					this->pos = pos;
+				}
 		};
 
 		class Queue {
@@ -52,14 +61,12 @@ class LuaFile {
 				Node* last;
 				Node* first;
 
-				Queue() {
-					last = 0;
-					first = 0;
+				Queue() : last(nullptr), first(nullptr) {
 				}
 
 				~Queue() {
 					Node* node = first;
-					while (node != 0) {
+					while (node != nullptr) {
 						first = node->next;
 						delete node;
 					}
@@ -68,15 +75,21 @@ class LuaFile {
 				void push() {
 					Node* node = new Node();
 
-					node->next = 0;
+					node->next = nullptr;
 
-					if (last == 0)	first = node;
-					else			last->next = node;
-									last = node;
+					if (last == nullptr) {
+						first = node;
+					} else {
+						last->next = node;
+					}
+					
+					last = node;
 				}
 
 				void pop() {
-					if (first == 0) return;
+					if (first == nullptr) {
+						return;
+					}
 
 					Node* node = first;
 					first = node->next;
@@ -90,70 +103,119 @@ class LuaFile {
 		class iterator {
 			private:
 				void getNext() {
-					if (region != 0) {
+					if (region != nullptr) {
 						if (region->data.pos) {
-							while (region != 0 && region->data.pos == word) region = region->next;
+							while (region != nullptr && region->data.pos == word) {
+								region = region->next;
+							}
 							word = 0;
-						} //if
-						else ++word;
-					} //if
-					if (region == 0) return;
+						} else {
+							++word;
+						}
+					}
 				}
+
 			public:
-				iterator(Queue* ptr) { this->ptr = ptr; region = ptr->first; word = 0; }
+				iterator(Queue* ptr) {
+					this->ptr = ptr;
+					region = ptr->first;
+					word = 0;
+				}
 
-				iterator& operator++() { getNext(); return *this; }
-				iterator& operator++(int junk) { getNext(); return *this; }
+				iterator& operator++() {
+					getNext();
+					return *this;
+				}
 
-				const Data operator*() { if (region == 0) return Data(); return region->data[word]; }
-				Data operator->() { if (region == 0) return Data(); return region->data[word]; }
-				const size_t size() { return (size_t)(region->data[word].end - region->data[word].start + 1); }
-				const char* addr() { return region->data[word].start; }
-				void data(char* buffer) { memcpy(buffer, region->data[word].start, size()); buffer[size()] = 0; }
+				iterator& operator++(int junk) {
+					getNext();
+					return *this;
+				}
+
+				const Data operator*() {
+					if (region == nullptr) {
+						return Data();
+					}
+
+					return region->data[word];
+				}
+				
+				Data operator->() {
+					if (region == nullptr) {
+						return Data();
+					}
+
+					return region->data[word];
+				}
+				
+				const size_t size() const {
+					return static_cast<size_t>(region->data[word].end - region->data[word].start + 1);
+				}
+
+				const char* addr() const {
+					return region->data[word].start;
+				}
+				
+				void data(char* buffer) {
+					memcpy(buffer, region->data[word].start, size());
+					buffer[size()] = '\0';
+				}
+				
 				bool operator==(const iterator& rhs) { return ptr == rhs.ptr; }
 				bool operator!=(const iterator& rhs) { return ptr != rhs.ptr; }
+				
 				void write(char* start, char* end) {
-					if (region == 0) return;
-					
-					Data data;
-					data.start = start;
-					data.end = end;
-					region->data.push_back(data);
+					if (region != nullptr) { 
+						Data data;
+						data.start = start;
+						data.end = end;
+						region->data.push_back(data);
+					}
 				}
+				
 				void push() {
 					ptr->push();
-					if (region == 0) region = ptr->last; word = 0;
+					if (region == nullptr) {
+						region = ptr->last;
+						word = 0;
+					}
 				}
-				bool end() { return region == 0;  }
+				
+				bool end() const {
+					return region == nullptr;
+				}
+			
 			private:
 				Queue* ptr;
 				Queue::Node* region;
 				size_t word;
 		};
 
-		size_t size() {
+		size_t size() const {
 			size_t fsize = 0;
 
-			for (LuaFile::Queue::Node* node = file.first; node != 0; node = node->next) {
+			for (auto node = file.first; node != 0; node = node->next) {
 				for (uint32_t i = 0; i < node->data.pos; ++i) {
-					fsize += (size_t)(node->data[i].end - node->data[i].start + 1);
+					fsize += static_cast<size_t>(node->data[i].end - node->data[i].start + 1);
 				}
 			}
 
 			return fsize;
 		}
-		void dump(char* buffer) {
-			for (LuaFile::Queue::Node* node = file.first; node != 0; node = node->next) {
+		
+		void dump(char* buffer) const {
+			for (auto node = file.first; node != 0; node = node->next) {
 				for (uint32_t i = 0; i < node->data.pos; ++i) {
-					memcpy(buffer, node->data[i].start, (size_t) (node->data[i].end - node->data[i].start + 1));
-					buffer += (size_t) (node->data[i].end - node->data[i].start + 1);
+					memcpy(buffer, node->data[i].start, static_cast<size_t>(node->data[i].end - node->data[i].start + 1));
+					buffer += static_cast<size_t>(node->data[i].end - node->data[i].start + 1);
 				}
 			}
 		}
-		void dump(ofstream& fname) {
-			for (LuaFile::Queue::Node* node = file.first; node != 0; node = node->next) {
+
+		void dump(std::ofstream& fname) const {
+			for (auto node = file.first; node != 0; node = node->next) {
 				for (uint32_t i = 0; i < node->data.pos; ++i) {
-					fname.write(node->data[i].start, (size_t) (node->data[i].end - node->data[i].start + 1));
+					fname.write(node->data[i].start, static_cast<std::streamsize>(node->data[i].end - node->data[i].start + 1));
 				}
 			}
 		}
