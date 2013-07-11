@@ -64,21 +64,12 @@ namespace Main {
 
 using namespace Main;
 
-//7 bits total*
-//1 bit in value
-//6 bits in index
-
-//first 4 bits = index
-//next 3 bits = 
-uint16_t filterT[128][8];
-inline uint8_t reader(const char* str) {
-	return (filterT[*str][*(str + 1) >> 4] & (1 << (*(str + 1) & 0xf))) >> (*(str + 1) & 0xf);
-}
-inline void setter(const char* str, bool val) {
-	filterT[*str][*(str + 1) >> 4] = filterT[*str][*(str + 1) >> 4] & ~(1 << (*(str + 1) & 0xf)) | (val << (*(str + 1) & 0xf));
-}
-
 int main(const int argc, const char* argv []) {
+	LuaPreParser parser;
+	
+	parser.addFilter("/*", "*/", true);
+
+	/*
 	LuaPreParser::Filter filter;
 
 	filter.add("/*");
@@ -101,7 +92,7 @@ int main(const int argc, const char* argv []) {
 
 	uint8_t bit = c & 0xf;
 	cout << (int)(bit) << endl;
-
+	*/
 	/*
 	read_flags(argc, argv);
 
