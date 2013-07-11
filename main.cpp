@@ -65,9 +65,13 @@ namespace Main {
 using namespace Main;
 
 int main(const int argc, const char* argv []) {
-	LuaPreParser parser;
+	Lua lua;
+
+	cout << "Meh" << endl;
+
+	//LuaPreParser parser;
 	
-	parser.addFilter("/*", "*/", true);
+	//parser.addFilter("/*", "*/", true);
 
 	/*
 	LuaPreParser::Filter filter;
