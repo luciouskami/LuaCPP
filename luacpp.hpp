@@ -18,6 +18,124 @@
 #include "lua.hpp"
 
 class Lua {
+public:
+	/*
+	*	typedefs
+	*/
+
+	//The type of the memory-allocation function used by Lua states. The allocator function must provide a functionality similar to realloc, but not exactly the same. Its arguments are ud, an opaque pointer passed to lua_newstate; ptr, a pointer to the block being allocated/reallocated/freed; osize, the original size of the block or some code about what is being allocated; nsize, the new size of the block.
+	//
+	//When ptr is not NULL, osize is the size of the block pointed by ptr, that is, the size given when it was allocated or reallocated.
+	//
+	//When ptr is NULL, osize encodes the kind of object that Lua is allocating. osize is any of LUA_TSTRING, LUA_TTABLE, LUA_TFUNCTION, LUA_TUSERDATA, or LUA_TTHREAD when (and only when) Lua is creating a new object of that type. When osize is some other value, Lua is allocating memory for something else.
+	//
+	//Lua assumes the following behavior from the allocator function:
+	//
+	//When nsize is zero, the allocator should behave like free and return NULL.
+	//
+	//When nsize is not zero, the allocator should behave like realloc. The allocator returns NULL if and only if it cannot fulfill the request. Lua assumes that the allocator never fails when osize >= nsize.
+	//
+	//Here is a simple implementation for the allocator function. It is used in the auxiliary library by luaL_newstate.
+	//
+	//	 static void *l_alloc (void *ud, void *ptr, size_t osize,
+	//												size_t nsize) {
+	//	   (void)ud;  (void)osize;  /* not used */
+	//	   if (nsize == 0) {
+	//		 free(ptr);
+	//		 return NULL;
+	//	   }
+	//	   else
+	//		 return realloc(ptr, nsize);
+	//	 }
+	//
+	//Note that Standard C ensures that free(NULL) has no effect and that realloc(NULL, size) is equivalent to malloc(size). This code assumes that realloc does not fail when shrinking a block. (Although Standard C does not ensure this behavior, it seems to be a safe assumption.)
+	typedef lua_Alloc Alloc;
+	//Type for C functions.
+	//
+	//In order to communicate properly with Lua, a C function must use the following protocol, which defines the way parameters and results are passed: a C function receives its arguments from Lua in its stack in direct order (the first argument is pushed first). So, when the function starts, lua_gettop(L) returns the number of arguments received by the function. The first argument (if any) is at index 1 and its last argument is at index lua_gettop(L). To return values to Lua, a C function just pushes them onto the stack, in direct order (the first result is pushed first), and returns the number of results. Any other value in the stack below the results will be properly discarded by Lua. Like a Lua function, a C function called by Lua can also return many results.
+	//
+	//As an example, the following function receives a variable number of numerical arguments and returns their average and sum:
+	//
+	//	 static int foo (lua_State *L) {
+	//	   int n = lua_gettop(L);    /* number of arguments */
+	//	   lua_Number sum = 0;
+	//	   int i;
+	//	   for (i = 1; i <= n; i++) {
+	//		 if (!lua_isnumber(L, i)) {
+	//		   lua_pushstring(L, "incorrect argument");
+	//		   lua_error(L);
+	//		 }
+	//		 sum += lua_tonumber(L, i);
+	//	   }
+	//	   lua_pushnumber(L, sum/n);		/* first result */
+	//	   lua_pushnumber(L, sum);		/* second result */
+	//	   return 2;				/* number of results */
+	//	 }
+	typedef lua_CFunction CFunction;
+	//The type used by the Lua API to represent signed integral values.
+	//
+	//By default it is a ptrdiff_t, which is usually the largest signed integral type the machine handles "comfortably".
+	typedef lua_Integer Integer;
+	//The type of numbers in Lua. By default, it is double, but that can be changed in luaconf.h. Through this configuration file you can change Lua to operate with another type for numbers (e.g., float or long).
+	typedef lua_Number Number;
+	//The reader function used by lua_load. Every time it needs another piece of the chunk, lua_load calls the reader, passing along its data parameter. The reader must return a pointer to a block of memory with a new piece of the chunk and set size to the block size. The block must exist until the reader function is called again. To signal the end of the chunk, the reader must return NULL or set size to zero. The reader function may return pieces of any size greater than zero.
+	typedef lua_Reader Reader;
+	//An opaque structure that points to a thread and indirectly (through the thread) to the whole state of a Lua interpreter. The Lua library is fully reentrant: it has no global variables. All information about a state is accessible through this structure.
+	//
+	//A pointer to this structure must be passed as the first argument to every function in the library, except to lua_newstate, which creates a Lua state from scratch.
+	typedef lua_State State;
+	//The type of the writer function used by lua_dump. Every time it produces another piece of chunk, lua_dump calls the writer, passing along the buffer to be written (p), its size (sz), and the data parameter supplied to lua_dump.
+	//
+	//The writer returns an error code: 0 means no errors; any other value means an error and stops lua_dump from calling the writer again.
+	typedef lua_Writer Writer;
+	//A structure used to carry different pieces of information about a function or an activation record. lua_getstack fills only the private part of this structure, for later use. To fill the other fields of lua_Debug with useful information, call lua_getinfo.
+	//
+	//The fields of lua_Debug have the following meaning:
+	//
+	//	source: the source of the chunk that created the function. If source starts with a '@', it means that the function was defined in a file where the file name follows the '@'. If source starts with a '=', the remainder of its contents describe the source in a user-dependent manner. Otherwise, the function was defined in a string where source is that string.
+	//	short_src: a "printable" version of source, to be used in error messages.
+	//	linedefined: the line number where the definition of the function starts.
+	//	lastlinedefined: the line number where the definition of the function ends.
+	//	what: the string "Lua" if the function is a Lua function, "C" if it is a C function, "main" if it is the main part of a chunk.
+	//	currentline: the current line where the given function is executing. When no line information is available, currentline is set to -1.
+	//	name: a reasonable name for the given function. Because functions in Lua are first-class values, they do not have a fixed name: some functions can be the value of multiple global variables, while others can be stored only in a table field. The lua_getinfo function checks how the function was called to find a suitable name. If it cannot find a name, then name is set to NULL.
+	//	namewhat: explains the name field. The value of namewhat can be "global", "local", "method", "field", "upvalue", or "" (the empty string), according to how the function was called. (Lua uses the empty string when no other option seems to apply.)
+	//	istailcall: true if this function invocation was called by a tail call. In this case, the caller of this level is not in the stack.
+	//	nups: the number of upvalues of the function.
+	//	nparams: the number of fixed parameters of the function (always 0 for C functions).
+	//	isvararg: true if the function is a vararg function (always true for C functions).
+	typedef lua_Debug Debug;
+	//Type for debugging hook functions.
+	//
+	//Whenever a hook is called, its ar argument has its field event set to the specific event that triggered the hook. Lua identifies these events with the following constants: LUA_HOOKCALL, LUA_HOOKRET, LUA_HOOKTAILCALL, LUA_HOOKLINE, and LUA_HOOKCOUNT. Moreover, for line events, the field currentline is also set. To get the value of any other field in ar, the hook must call lua_getinfo.
+	//
+	//For call events, event can be LUA_HOOKCALL, the normal value, or LUA_HOOKTAILCALL, for a tail call; in this case, there will be no corresponding return event.
+	//
+	//While Lua is running a hook, it disables other calls to hooks. Therefore, if a hook calls back Lua to execute a function or a chunk, this execution occurs without any calls to hooks.
+	//
+	//Hook functions cannot have continuations, that is, they cannot call lua_yieldk, lua_pcallk, or lua_callk with a non-null k.
+	//
+	//Hook functions can yield under the following conditions: Only count and line events can yield and they cannot yield any value; to yield a hook function must finish its execution calling lua_yield with nresults equal to zero.
+	typedef lua_Hook Hook;
+	//Type for a string buffer.
+	//
+	//A string buffer allows C code to build Lua strings piecemeal. Its pattern of use is as follows:
+	//
+	//First declare a variable b of type luaL_Buffer.
+	//Then initialize it with a call luaL_buffinit(L, &b).
+	//Then add string pieces to the buffer calling any of the luaL_add* functions.
+	//Finish by calling luaL_pushresult(&b). This call leaves the final string on the top of the stack.
+	//If you know beforehand the total size of the resulting string, you can use the buffer like this:
+	//
+	//First declare a variable b of type luaL_Buffer.
+	//Then initialize it and preallocate a space of size sz with a call luaL_buffinitsize(L, &b, sz).
+	//Then copy the string into that space.
+	//Finish by calling luaL_pushresultsize(&b, sz), where sz is the total size of the resulting string copied into that space.
+	//During its normal operation, a string buffer uses a variable number of stack slots. So, while using a buffer, you cannot assume that you know where the top of the stack is. You can use the stack between successive calls to buffer operations as long as that use is balanced; that is, when you call a buffer operation, the stack is at the same level it was immediately after the previous buffer operation. (The only exception to this rule is luaL_addvalue.) After calling luaL_pushresult the stack is back to its level when the buffer was initialized, plus the final string on its top.
+	typedef luaL_Buffer l_Buffer;
+	//Type for arrays of functions to be registered by luaL_setfuncs. name is the function name and func is a pointer to the function. Any array of luaL_Reg must end with an sentinel entry in which both name and func are NULL.
+	typedef luaL_Reg l_Reg;
+
 	private:
 		State* L;
 		bool dependent;
@@ -656,121 +774,4 @@ class Lua {
 		//	LUAJIT_MODE_ON
 		//	LUAJIT_MODE_FLUSH
 		int setmode(int index, int mode) { return luaJIT_setmode(L, index, mode); }
-
-		/*
-		*	typedefs
-		*/
-
-		//The type of the memory-allocation function used by Lua states. The allocator function must provide a functionality similar to realloc, but not exactly the same. Its arguments are ud, an opaque pointer passed to lua_newstate; ptr, a pointer to the block being allocated/reallocated/freed; osize, the original size of the block or some code about what is being allocated; nsize, the new size of the block.
-		//
-		//When ptr is not NULL, osize is the size of the block pointed by ptr, that is, the size given when it was allocated or reallocated.
-		//
-		//When ptr is NULL, osize encodes the kind of object that Lua is allocating. osize is any of LUA_TSTRING, LUA_TTABLE, LUA_TFUNCTION, LUA_TUSERDATA, or LUA_TTHREAD when (and only when) Lua is creating a new object of that type. When osize is some other value, Lua is allocating memory for something else.
-		//
-		//Lua assumes the following behavior from the allocator function:
-		//
-		//When nsize is zero, the allocator should behave like free and return NULL.
-		//
-		//When nsize is not zero, the allocator should behave like realloc. The allocator returns NULL if and only if it cannot fulfill the request. Lua assumes that the allocator never fails when osize >= nsize.
-		//
-		//Here is a simple implementation for the allocator function. It is used in the auxiliary library by luaL_newstate.
-		//
-		//	 static void *l_alloc (void *ud, void *ptr, size_t osize,
-		//												size_t nsize) {
-		//	   (void)ud;  (void)osize;  /* not used */
-		//	   if (nsize == 0) {
-		//		 free(ptr);
-		//		 return NULL;
-		//	   }
-		//	   else
-		//		 return realloc(ptr, nsize);
-		//	 }
-		//
-		//Note that Standard C ensures that free(NULL) has no effect and that realloc(NULL, size) is equivalent to malloc(size). This code assumes that realloc does not fail when shrinking a block. (Although Standard C does not ensure this behavior, it seems to be a safe assumption.)
-		typedef lua_Alloc Alloc;
-		//Type for C functions.
-		//
-		//In order to communicate properly with Lua, a C function must use the following protocol, which defines the way parameters and results are passed: a C function receives its arguments from Lua in its stack in direct order (the first argument is pushed first). So, when the function starts, lua_gettop(L) returns the number of arguments received by the function. The first argument (if any) is at index 1 and its last argument is at index lua_gettop(L). To return values to Lua, a C function just pushes them onto the stack, in direct order (the first result is pushed first), and returns the number of results. Any other value in the stack below the results will be properly discarded by Lua. Like a Lua function, a C function called by Lua can also return many results.
-		//
-		//As an example, the following function receives a variable number of numerical arguments and returns their average and sum:
-		//
-		//	 static int foo (lua_State *L) {
-		//	   int n = lua_gettop(L);    /* number of arguments */
-		//	   lua_Number sum = 0;
-		//	   int i;
-		//	   for (i = 1; i <= n; i++) {
-		//		 if (!lua_isnumber(L, i)) {
-		//		   lua_pushstring(L, "incorrect argument");
-		//		   lua_error(L);
-		//		 }
-		//		 sum += lua_tonumber(L, i);
-		//	   }
-		//	   lua_pushnumber(L, sum/n);		/* first result */
-		//	   lua_pushnumber(L, sum);		/* second result */
-		//	   return 2;				/* number of results */
-		//	 }
-		typedef lua_CFunction CFunction;
-		//The type used by the Lua API to represent signed integral values.
-		//
-		//By default it is a ptrdiff_t, which is usually the largest signed integral type the machine handles "comfortably".
-		typedef lua_Integer Integer;
-		//The type of numbers in Lua. By default, it is double, but that can be changed in luaconf.h. Through this configuration file you can change Lua to operate with another type for numbers (e.g., float or long).
-		typedef lua_Number Number;
-		//The reader function used by lua_load. Every time it needs another piece of the chunk, lua_load calls the reader, passing along its data parameter. The reader must return a pointer to a block of memory with a new piece of the chunk and set size to the block size. The block must exist until the reader function is called again. To signal the end of the chunk, the reader must return NULL or set size to zero. The reader function may return pieces of any size greater than zero.
-		typedef lua_Reader Reader;
-		//An opaque structure that points to a thread and indirectly (through the thread) to the whole state of a Lua interpreter. The Lua library is fully reentrant: it has no global variables. All information about a state is accessible through this structure.
-		//
-		//A pointer to this structure must be passed as the first argument to every function in the library, except to lua_newstate, which creates a Lua state from scratch.
-		typedef lua_State State;
-		//The type of the writer function used by lua_dump. Every time it produces another piece of chunk, lua_dump calls the writer, passing along the buffer to be written (p), its size (sz), and the data parameter supplied to lua_dump.
-		//
-		//The writer returns an error code: 0 means no errors; any other value means an error and stops lua_dump from calling the writer again.
-		typedef lua_Writer Writer;
-		//A structure used to carry different pieces of information about a function or an activation record. lua_getstack fills only the private part of this structure, for later use. To fill the other fields of lua_Debug with useful information, call lua_getinfo.
-		//
-		//The fields of lua_Debug have the following meaning:
-		//
-		//	source: the source of the chunk that created the function. If source starts with a '@', it means that the function was defined in a file where the file name follows the '@'. If source starts with a '=', the remainder of its contents describe the source in a user-dependent manner. Otherwise, the function was defined in a string where source is that string.
-		//	short_src: a "printable" version of source, to be used in error messages.
-		//	linedefined: the line number where the definition of the function starts.
-		//	lastlinedefined: the line number where the definition of the function ends.
-		//	what: the string "Lua" if the function is a Lua function, "C" if it is a C function, "main" if it is the main part of a chunk.
-		//	currentline: the current line where the given function is executing. When no line information is available, currentline is set to -1.
-		//	name: a reasonable name for the given function. Because functions in Lua are first-class values, they do not have a fixed name: some functions can be the value of multiple global variables, while others can be stored only in a table field. The lua_getinfo function checks how the function was called to find a suitable name. If it cannot find a name, then name is set to NULL.
-		//	namewhat: explains the name field. The value of namewhat can be "global", "local", "method", "field", "upvalue", or "" (the empty string), according to how the function was called. (Lua uses the empty string when no other option seems to apply.)
-		//	istailcall: true if this function invocation was called by a tail call. In this case, the caller of this level is not in the stack.
-		//	nups: the number of upvalues of the function.
-		//	nparams: the number of fixed parameters of the function (always 0 for C functions).
-		//	isvararg: true if the function is a vararg function (always true for C functions).
-		typedef lua_Debug Debug;
-		//Type for debugging hook functions.
-		//
-		//Whenever a hook is called, its ar argument has its field event set to the specific event that triggered the hook. Lua identifies these events with the following constants: LUA_HOOKCALL, LUA_HOOKRET, LUA_HOOKTAILCALL, LUA_HOOKLINE, and LUA_HOOKCOUNT. Moreover, for line events, the field currentline is also set. To get the value of any other field in ar, the hook must call lua_getinfo.
-		//
-		//For call events, event can be LUA_HOOKCALL, the normal value, or LUA_HOOKTAILCALL, for a tail call; in this case, there will be no corresponding return event.
-		//
-		//While Lua is running a hook, it disables other calls to hooks. Therefore, if a hook calls back Lua to execute a function or a chunk, this execution occurs without any calls to hooks.
-		//
-		//Hook functions cannot have continuations, that is, they cannot call lua_yieldk, lua_pcallk, or lua_callk with a non-null k.
-		//
-		//Hook functions can yield under the following conditions: Only count and line events can yield and they cannot yield any value; to yield a hook function must finish its execution calling lua_yield with nresults equal to zero.
-		typedef lua_Hook Hook;
-		//Type for a string buffer.
-		//
-		//A string buffer allows C code to build Lua strings piecemeal. Its pattern of use is as follows:
-		//
-		//First declare a variable b of type luaL_Buffer.
-		//Then initialize it with a call luaL_buffinit(L, &b).
-		//Then add string pieces to the buffer calling any of the luaL_add* functions.
-		//Finish by calling luaL_pushresult(&b). This call leaves the final string on the top of the stack.
-		//If you know beforehand the total size of the resulting string, you can use the buffer like this:
-		//
-		//First declare a variable b of type luaL_Buffer.
-		//Then initialize it and preallocate a space of size sz with a call luaL_buffinitsize(L, &b, sz).
-		//Then copy the string into that space.
-		//Finish by calling luaL_pushresultsize(&b, sz), where sz is the total size of the resulting string copied into that space.
-		//During its normal operation, a string buffer uses a variable number of stack slots. So, while using a buffer, you cannot assume that you know where the top of the stack is. You can use the stack between successive calls to buffer operations as long as that use is balanced; that is, when you call a buffer operation, the stack is at the same level it was immediately after the previous buffer operation. (The only exception to this rule is luaL_addvalue.) After calling luaL_pushresult the stack is back to its level when the buffer was initialized, plus the final string on its top.
-		typedef luaL_Buffer l_Buffer;
-		//Type for arrays of functions to be registered by luaL_setfuncs. name is the function name and func is a pointer to the function. Any array of luaL_Reg must end with an sentinel entry in which both name and func are NULL.
-		typedef luaL_Reg l_Reg;
 };

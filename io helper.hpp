@@ -3,29 +3,41 @@
 #include <fstream>
 #include <stdint.h>
 
+#include <iostream>
+
 using namespace std;
 
 class IO_Helper {
 	public:
-		static char* read(const char* filename) {
+		struct Data {
+			char* str;
+			size_t size;
+
+			Data() { str = 0; size = 0; }
+			~Data() { if (str != 0) delete [] str; }
+		};
+
+		static Data* read(const char* filename) {
+			Data& data = *new Data();
+
 			// open the file for binary reading
 			ifstream file;
 			file.open(filename, ios::binary);
-			if(!file.is_open()) return 0;
+			if(!file.is_open()) return &data;
 
 			// get the length of the file
 			file.seekg(0, ios::end);
-			uint32_t fileSize = file.tellg();
+			data.size = 1 + file.tellg();
 
 			// read the file
 			file.seekg(0, ios::beg);
-			char* data = new char[fileSize + 1];
-			file.read(data, fileSize);
-			data[fileSize] = 0;
+			data.str = new char[data.size + 1];
+			file.read(data.str, data.size);
+			data.str[data.size] = 0;
 
 			// close the file
 			file.close();
 
-			return data;
+			return &data;
 		} //read
 }; //IO_Helper

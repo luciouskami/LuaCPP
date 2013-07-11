@@ -208,11 +208,13 @@ class LuaFile {
 			return fsize;
 		}
 
-		void dump(std::ostream& fname) const {
+		void dump(std::ostream& out) const {
 			for (auto node = file.first; node != 0; node = node->next) {
 				for (uint32_t i = 0; i < node->data.pos; ++i) {
-					fname.write(node->data[i].start, static_cast<std::streamsize>(node->data[i].end - node->data[i].start + 1));
+					out.write(node->data[i].start, static_cast<std::streamsize>(node->data[i].end - node->data[i].start + 1));
 				}
 			}
 		}
+
+		iterator begin() { return iterator(&file); }
 };
