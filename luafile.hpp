@@ -52,7 +52,7 @@ class LuaFile {
 					return arr[index];
 				}
 
-				void push_back(Data&& v) {
+				void push_back(Data& v) {
 					(*this)[pos++] = v;
 				}
 
